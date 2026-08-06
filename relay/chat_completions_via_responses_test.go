@@ -1,7 +1,9 @@
 package relay
 
 import (
+	"io"
 	"math"
+	"strings"
 	"testing"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -27,6 +29,54 @@ func TestIsResponsesEventStreamContentType(t *testing.T) {
 			assert.Equal(t, tt.want, isResponsesEventStreamContentType(tt.contentType))
 		})
 	}
+}
+
+func TestSniffResponsesEventStreamBody(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{
+			name: "codex event stream without content type",
+			body: "event: response.created\ndata: {\"type\":\"response.created\"}\n\n",
+			want: true,
+		},
+		{
+			name: "data only event stream",
+			body: "data: {\"type\":\"response.output_text.delta\"}\n\n",
+			want: true,
+		},
+		{
+			name: "event stream with BOM and whitespace",
+			body: "\ufeff \r\nevent: response.created\n",
+			want: true,
+		},
+		{name: "json object", body: "{\"id\":\"resp_123\"}", want: false},
+		{name: "json array", body: "[1,2,3]", want: false},
+		{name: "plain text error", body: "error from upstream", want: false},
+		{name: "short partial prefix", body: "eve", want: false},
+		{name: "empty body", body: "", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isEventStream, body := sniffResponsesEventStreamBody(io.NopCloser(strings.NewReader(tt.body)))
+			require.NotNil(t, body)
+			defer body.Close()
+
+			assert.Equal(t, tt.want, isEventStream)
+			gotBody, err := io.ReadAll(body)
+			require.NoError(t, err)
+			assert.Equal(t, tt.body, string(gotBody))
+		})
+	}
+}
+
+func TestSniffResponsesEventStreamBodyWithNilBody(t *testing.T) {
+	isEventStream, body := sniffResponsesEventStreamBody(nil)
+	assert.False(t, isEventStream)
+	assert.Nil(t, body)
 }
 
 func TestRecalcQuotaFromRatiosIgnoresInvalidMultipliers(t *testing.T) {

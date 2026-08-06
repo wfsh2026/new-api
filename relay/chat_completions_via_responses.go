@@ -1,6 +1,8 @@
 package relay
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -156,6 +158,10 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
 		return nil, newApiErr
 	}
+	if !upstreamStream {
+		upstreamStream, httpResp.Body = sniffResponsesEventStreamBody(httpResp.Body)
+		info.IsStream = clientStream || upstreamStream
+	}
 
 	if upstreamStream && clientStream {
 		usage, newApiErr := openaichannel.OaiResponsesToChatStreamHandler(c, info, httpResp)
@@ -185,4 +191,57 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 
 func isResponsesEventStreamContentType(contentType string) bool {
 	return strings.Contains(strings.ToLower(contentType), "text/event-stream")
+}
+
+const maxResponsesEventStreamPrefix = 64
+
+var (
+	responsesEventPrefix = []byte("event:")
+	responsesDataPrefix  = []byte("data:")
+	utf8BOM              = []byte{0xef, 0xbb, 0xbf}
+)
+
+// sniffResponsesEventStreamBody handles upstreams that return SSE without a
+// Content-Type header. Peek leaves the inspected prefix available to the
+// downstream response handler.
+func sniffResponsesEventStreamBody(body io.ReadCloser) (bool, io.ReadCloser) {
+	if body == nil {
+		return false, nil
+	}
+
+	reader := bufio.NewReaderSize(body, maxResponsesEventStreamPrefix+1)
+	wrappedBody := &bufferedReadCloser{Reader: reader, Closer: body}
+
+	for size := 1; size <= maxResponsesEventStreamPrefix; size++ {
+		prefix, err := reader.Peek(size)
+		if len(prefix) > 0 {
+			if len(prefix) < len(utf8BOM) && bytes.HasPrefix(utf8BOM, prefix) {
+				if err != nil {
+					return false, wrappedBody
+				}
+				continue
+			}
+
+			candidate := bytes.TrimPrefix(prefix, utf8BOM)
+			candidate = bytes.TrimLeft(candidate, " \t\r\n")
+			if bytes.HasPrefix(candidate, responsesEventPrefix) || bytes.HasPrefix(candidate, responsesDataPrefix) {
+				return true, wrappedBody
+			}
+			if len(candidate) > 0 &&
+				!bytes.HasPrefix(responsesEventPrefix, candidate) &&
+				!bytes.HasPrefix(responsesDataPrefix, candidate) {
+				return false, wrappedBody
+			}
+		}
+		if err != nil {
+			return false, wrappedBody
+		}
+	}
+
+	return false, wrappedBody
+}
+
+type bufferedReadCloser struct {
+	*bufio.Reader
+	io.Closer
 }
