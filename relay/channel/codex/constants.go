@@ -17,11 +17,14 @@ var baseModelList = []string{
 	"codex-auto-review",
 }
 
-var ModelList = slices.DeleteFunc(
+var ModelList = append(slices.DeleteFunc(
 	ratio_setting.WithCompactModelVariants(baseModelList),
 	func(modelName string) bool {
 		return modelName == ratio_setting.WithCompactModelSuffix("codex-auto-review")
 	},
-)
+), ImageModel)
 
-const ChannelName = "codex"
+const (
+	ChannelName = "codex"
+	ImageModel  = "gpt-image-2"
+)
