@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -18,6 +19,26 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+func responsesRequestFromCompaction(req *dto.OpenAIResponsesCompactionRequest, includeCodexFields bool) *dto.OpenAIResponsesRequest {
+	responsesReq := &dto.OpenAIResponsesRequest{
+		Model:                req.Model,
+		Input:                req.Input,
+		Instructions:         req.Instructions,
+		PreviousResponseID:   req.PreviousResponseID,
+		ParallelToolCalls:    req.ParallelToolCalls,
+		ServiceTier:          req.ServiceTier,
+		PromptCacheKey:       req.PromptCacheKey,
+		PromptCacheOptions:   req.PromptCacheOptions,
+		PromptCacheRetention: req.PromptCacheRetention,
+	}
+	if includeCodexFields {
+		responsesReq.Tools = req.Tools
+		responsesReq.Reasoning = req.Reasoning
+		responsesReq.Text = req.Text
+	}
+	return responsesReq
+}
 
 func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
@@ -36,22 +57,10 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	case *dto.OpenAIResponsesRequest:
 		responsesReq = req
 	case *dto.OpenAIResponsesCompactionRequest:
-		// Only fields documented for POST /v1/responses/compact are forwarded:
-		// model, input, instructions, previous_response_id, prompt_cache_key,
-		// prompt_cache_options, prompt_cache_retention, service_tier.
-		// Undocumented Codex-parity fields (tools, reasoning, text) are parsed
-		// for client compatibility but intentionally not sent upstream.
-		responsesReq = &dto.OpenAIResponsesRequest{
-			Model:                req.Model,
-			Input:                req.Input,
-			Instructions:         req.Instructions,
-			PreviousResponseID:   req.PreviousResponseID,
-			ParallelToolCalls:    req.ParallelToolCalls,
-			ServiceTier:          req.ServiceTier,
-			PromptCacheKey:       req.PromptCacheKey,
-			PromptCacheOptions:   req.PromptCacheOptions,
-			PromptCacheRetention: req.PromptCacheRetention,
-		}
+		// OpenAI's compact endpoint accepts only the documented subset below.
+		// Codex compact V2 runs through the regular Responses endpoint and also
+		// needs the tools/reasoning/text controls sent by Codex clients.
+		responsesReq = responsesRequestFromCompaction(req, info.ChannelType == constant.ChannelTypeCodex)
 	default:
 		return types.NewErrorWithStatusCode(
 			fmt.Errorf("invalid request type, expected dto.OpenAIResponsesRequest or dto.OpenAIResponsesCompactionRequest, got %T", info.Request),

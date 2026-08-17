@@ -131,11 +131,18 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	}
 
 	if isCompact {
-		return request, nil
+		input, err := appendCompactionTrigger(request.Input)
+		if err != nil {
+			return nil, err
+		}
+		stream := true
+		request.Input = input
+		request.Include = json.RawMessage(`["reasoning.encrypted_content"]`)
+		request.Stream = &stream
 	}
-	// codex: store must be false
+
+	// Codex backend requires store=false and rejects these generation controls.
 	request.Store = json.RawMessage("false")
-	// rm max_output_tokens
 	request.MaxOutputTokens = nil
 	request.Temperature = nil
 	request.FrequencyPenalty = nil
@@ -158,7 +165,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		}
 		return openai.OpenaiImageHandler(c, info, resp)
 	case relayconstant.RelayModeResponsesCompact:
-		return openai.OaiResponsesCompactionHandler(c, resp)
+		return codexResponsesCompactionV2Handler(c, resp)
 	case relayconstant.RelayModeResponses:
 		if info.IsStream {
 			return openai.OaiResponsesStreamHandler(c, info, resp)
@@ -184,10 +191,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		path = "/backend-api/codex/images/generations"
 	case relayconstant.RelayModeImagesEdits:
 		path = "/backend-api/codex/images/edits"
-	case relayconstant.RelayModeResponses:
+	case relayconstant.RelayModeResponses, relayconstant.RelayModeResponsesCompact:
 		path = "/backend-api/codex/responses"
-	case relayconstant.RelayModeResponsesCompact:
-		path = "/backend-api/codex/responses/compact"
 	case relayconstant.RelayModeAlphaSearch:
 		path = "/backend-api/codex/alpha/search"
 	default:
@@ -244,7 +249,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	// Clients may omit it or include parameters like `application/json; charset=utf-8`,
 	// which can be rejected by the upstream. Force the exact media type.
 	req.Set("Content-Type", "application/json")
-	if info.IsStream {
+	if info.IsStream || info.RelayMode == relayconstant.RelayModeResponsesCompact {
 		req.Set("Accept", "text/event-stream")
 	} else if req.Get("Accept") == "" {
 		req.Set("Accept", "application/json")
