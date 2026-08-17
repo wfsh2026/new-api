@@ -14,6 +14,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,9 +40,11 @@ func codexTestRelayInfo(relayMode int) *relaycommon.RelayInfo {
 	}
 }
 
-func TestCodexModelListIncludesImageModelWithoutCompactVariant(t *testing.T) {
+func TestCodexModelListIncludesImageModelWithoutCompactVariants(t *testing.T) {
 	assert.Contains(t, ModelList, ImageModel)
-	assert.NotContains(t, ModelList, ImageModel+"-compact")
+	for _, model := range ModelList {
+		assert.NotContains(t, model, "-openai-compact")
+	}
 }
 
 func TestGetRequestURL(t *testing.T) {
@@ -212,4 +215,31 @@ func TestDoResponseHandlesCodexImageJSON(t *testing.T) {
 	assert.Equal(t, 10, usage.CompletionTokens)
 	assert.Equal(t, 16, usage.TotalTokens)
 	assert.JSONEq(t, responseBody, recorder.Body.String())
+}
+
+// The Codex backend rejects these fields, so the adaptor clears them rather
+// than forwarding what the client sent.
+func TestConvertOpenAIResponsesRequestDropsPenalties(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeCodex},
+		RelayMode:   relayconstant.RelayModeResponses,
+	}
+
+	converted, err := adaptor.ConvertOpenAIResponsesRequest(nil, info, dto.OpenAIResponsesRequest{
+		Model:            "gpt-5-codex",
+		Input:            json.RawMessage(`"hello"`),
+		MaxOutputTokens:  lo.ToPtr(uint(128)),
+		Temperature:      lo.ToPtr(1.0),
+		FrequencyPenalty: json.RawMessage(`1.5`),
+		PresencePenalty:  json.RawMessage(`1.5`),
+	})
+	require.NoError(t, err)
+
+	request, ok := converted.(dto.OpenAIResponsesRequest)
+	require.True(t, ok)
+	assert.Nil(t, request.MaxOutputTokens)
+	assert.Nil(t, request.Temperature)
+	assert.Nil(t, request.FrequencyPenalty)
+	assert.Nil(t, request.PresencePenalty)
 }
