@@ -14,6 +14,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestPrepareCodexChatCompatibilityRequestFiltersGPT6Sampling(t *testing.T) {
+	temperature := 0.2
+	topP := 0.8
+	logProbs := true
+	topLogProbs := 5
+	request := &dto.GeneralOpenAIRequest{
+		Model:       "customer-alias",
+		Temperature: &temperature,
+		TopP:        &topP,
+		LogProbs:    &logProbs,
+		TopLogProbs: &topLogProbs,
+	}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		ChannelType:       constant.ChannelTypeCodex,
+		UpstreamModelName: "gpt-6-astra",
+	}}
+
+	prepareCodexChatCompatibilityRequest(info, request)
+
+	assert.Nil(t, request.Temperature)
+	assert.Nil(t, request.TopP)
+	assert.Nil(t, request.LogProbs)
+	assert.Nil(t, request.TopLogProbs)
+}
+
 func TestPrepareChatCompatibleResponsesRequest(t *testing.T) {
 	clientStream := false
 

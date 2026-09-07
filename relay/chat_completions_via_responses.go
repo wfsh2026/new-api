@@ -94,6 +94,7 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	if err := common.Unmarshal(chatJSON, &overriddenChatReq); err != nil {
 		return nil, types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
 	}
+	prepareCodexChatCompatibilityRequest(info, &overriddenChatReq)
 
 	result, err := service.ConvertRequestVia(c, info, &overriddenChatReq, types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses)
 	if err != nil {
@@ -188,6 +189,27 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 		return nil, newApiErr
 	}
 	return usage, nil
+}
+
+func prepareCodexChatCompatibilityRequest(info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) {
+	if info == nil || request == nil || info.ChannelType != constant.ChannelTypeCodex {
+		return
+	}
+	modelName := info.UpstreamModelName
+	if modelName == "" {
+		modelName = request.Model
+	}
+	capabilities := dto.GetOpenAIChatCapabilities(modelName, request.ReasoningEffort)
+	if !capabilities.SupportsTemperature {
+		request.Temperature = nil
+	}
+	if !capabilities.SupportsTopP {
+		request.TopP = nil
+	}
+	if !capabilities.SupportsLogProbs {
+		request.LogProbs = nil
+		request.TopLogProbs = nil
+	}
 }
 
 func prepareChatCompatibleResponsesRequest(info *relaycommon.RelayInfo, request *dto.OpenAIResponsesRequest) {
