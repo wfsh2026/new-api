@@ -103,6 +103,7 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	if !ok {
 		return nil, types.NewError(fmt.Errorf("expected OpenAI responses request, got %T", result.Value), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
+	prepareChatCompatibleResponsesRequest(info, responsesReq)
 
 	savedRelayMode := info.RelayMode
 	savedRequestURLPath := info.RequestURLPath
@@ -187,6 +188,14 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 		return nil, newApiErr
 	}
 	return usage, nil
+}
+
+func prepareChatCompatibleResponsesRequest(info *relaycommon.RelayInfo, request *dto.OpenAIResponsesRequest) {
+	if info == nil || request == nil || info.ChannelType != constant.ChannelTypeCodex {
+		return
+	}
+	stream := true
+	request.Stream = &stream
 }
 
 func isResponsesEventStreamContentType(contentType string) bool {

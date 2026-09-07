@@ -6,11 +6,27 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestPrepareChatCompatibleResponsesRequest(t *testing.T) {
+	clientStream := false
+
+	codexRequest := &dto.OpenAIResponsesRequest{Stream: &clientStream}
+	prepareChatCompatibleResponsesRequest(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeCodex}}, codexRequest)
+	require.NotNil(t, codexRequest.Stream)
+	assert.True(t, *codexRequest.Stream)
+
+	openAIRequest := &dto.OpenAIResponsesRequest{Stream: &clientStream}
+	prepareChatCompatibleResponsesRequest(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenAI}}, openAIRequest)
+	require.NotNil(t, openAIRequest.Stream)
+	assert.False(t, *openAIRequest.Stream)
+}
 
 func TestIsResponsesEventStreamContentType(t *testing.T) {
 	tests := []struct {
