@@ -41,6 +41,7 @@ func codexTestRelayInfo(relayMode int) *relaycommon.RelayInfo {
 }
 
 func TestCodexModelListIncludesImageModelWithoutCompactVariants(t *testing.T) {
+	assert.Contains(t, ModelList, "gpt-6-astra")
 	assert.Contains(t, ModelList, ImageModel)
 	for _, model := range ModelList {
 		assert.NotContains(t, model, "-openai-compact")

@@ -10,6 +10,22 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+func TestGetOpenAIChatCapabilitiesGPT6Astra(t *testing.T) {
+	for _, model := range []string{"gpt-6-astra", "gpt-6-astra-2026-09-03"} {
+		capabilities := GetOpenAIChatCapabilities(model, "high")
+		assert.True(t, capabilities.UseMaxCompletionTokens)
+		assert.True(t, capabilities.UseDeveloperRole)
+		assert.False(t, capabilities.SupportsTemperature)
+		assert.False(t, capabilities.SupportsTopP)
+		assert.False(t, capabilities.SupportsLogProbs)
+	}
+
+	unknown := GetOpenAIChatCapabilities("gpt-6-astra-pro", "")
+	assert.False(t, unknown.UseMaxCompletionTokens)
+	assert.False(t, unknown.UseDeveloperRole)
+	assert.True(t, unknown.SupportsTemperature)
+}
+
 func TestGeneralOpenAIRequestPreserveExplicitZeroValues(t *testing.T) {
 	raw := []byte(`{
 		"model":"gpt-4.1",
