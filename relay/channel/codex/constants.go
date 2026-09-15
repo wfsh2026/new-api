@@ -11,6 +11,8 @@ var ModelList = []string{
 	"gpt-5.3-codex-spark",
 	"codex-auto-review",
 	ImageModel,
+	"gpt-image-2.5-sunburst",
+	"gpt-image-2.5-flare",
 }
 
 const (

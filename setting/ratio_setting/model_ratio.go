@@ -382,6 +382,14 @@ func handleThinkingBudgetModel(name, prefix, wildcard string) string {
 	return name
 }
 
+// HasConfiguredModelRatio reports whether name has an explicit ratio entry
+// after wildcard normalization. Self-use fallback does not count.
+func HasConfiguredModelRatio(name string) bool {
+	name = FormatMatchingModelName(name)
+	_, ok := modelRatioMap.Get(name)
+	return ok
+}
+
 func GetModelRatio(name string) (float64, bool, string) {
 	name = FormatMatchingModelName(name)
 

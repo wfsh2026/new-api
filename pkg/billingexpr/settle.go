@@ -27,6 +27,11 @@ func ComputeTieredQuotaWithRequest(snap *BillingSnapshot, params TokenParams, re
 	quotaBeforeGroup := quotaConversion(cost, snap)
 	afterGroup, clamp := common.QuotaRoundChecked(quotaBeforeGroup * snap.GroupRatio)
 	crossed := trace.MatchedTier != snap.EstimatedTier
+	var billingTokens *TokenParams
+	usedVars := UsedVars(snap.ExprString)
+	if usedVars["img_cr"] {
+		billingTokens = &params
+	}
 
 	return TieredResult{
 		ActualQuotaBeforeGroup: quotaBeforeGroup,
@@ -34,6 +39,7 @@ func ComputeTieredQuotaWithRequest(snap *BillingSnapshot, params TokenParams, re
 		MatchedTier:            trace.MatchedTier,
 		RequestRules:           trace.RequestRules,
 		CrossedTier:            crossed,
+		BillingTokens:          billingTokens,
 		Clamp:                  clamp,
 	}, nil
 }

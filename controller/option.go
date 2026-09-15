@@ -81,7 +81,7 @@ func GetOptions(c *gin.Context) {
 	optionValues := make(map[string]string)
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
-		if k == "theme.frontend" {
+		if k == "theme.frontend" || k == "billing_setting.billing_mode" || k == "billing_setting.billing_expr" {
 			continue
 		}
 		value := common.Interface2String(v)
@@ -105,6 +105,23 @@ func GetOptions(c *gin.Context) {
 		}
 	}
 	common.OptionMapRWMutex.Unlock()
+	// Display the same effective expressions used by pricing and settlement,
+	// including built-in defaults absent from persisted administrator options.
+	billingModes := billing_setting.GetBillingModeCopy()
+	billingExpressions := billing_setting.GetBillingExprCopy()
+	for key, values := range map[string]map[string]string{
+		"billing_setting.billing_mode": billingModes,
+		"billing_setting.billing_expr": billingExpressions,
+	} {
+		encoded, err := common.Marshal(values)
+		if err != nil {
+			errorMessage := err.Error()
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": errorMessage})
+			return
+		}
+		encodedValue := string(encoded)
+		options = append(options, &model.Option{Key: key, Value: encodedValue})
+	}
 	options = append(options, &model.Option{
 		Key:   "CompletionRatioMeta",
 		Value: buildCompletionRatioMetaValue(optionValues),
