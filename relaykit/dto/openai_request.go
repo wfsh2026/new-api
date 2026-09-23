@@ -256,13 +256,17 @@ func GetOpenAIChatCapabilities(modelName, reasoningEffort string) OpenAIChatCapa
 	}
 
 	isGPT5Model := IsOpenAIGPT5Model(modelName)
-	if !isGPT5Model && !isOpenAIModelSnapshot(modelName, "gpt-6-astra") {
+	isGPT6Astra := isOpenAIModelSnapshot(modelName, "gpt-6-astra")
+	isGPT6Sol := isOpenAIModelSnapshot(modelName, "gpt-6-sol")
+	isGPT6Luna := isOpenAIModelSnapshot(modelName, "gpt-6-luna")
+	if !isGPT5Model && !isGPT6Astra && !isGPT6Sol && !isGPT6Luna {
 		return capabilities
 	}
 	capabilities.UseMaxCompletionTokens = true
 	capabilities.UseDeveloperRole = true
 
-	supportsSampling := false
+	// Sol and Luna default to medium reasoning; sampling requires explicit none.
+	supportsSampling := (isGPT6Sol || isGPT6Luna) && reasoningEffort == "none"
 	if isGPT5Model && (reasoningEffort == "" || reasoningEffort == "none") {
 		for _, model := range []string{"gpt-5.1", "gpt-5.2", "gpt-5.4"} {
 			if isOpenAIModelSnapshot(modelName, model) {

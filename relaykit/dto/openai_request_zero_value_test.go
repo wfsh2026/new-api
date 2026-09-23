@@ -26,6 +26,26 @@ func TestGetOpenAIChatCapabilitiesGPT6Astra(t *testing.T) {
 	assert.True(t, unknown.SupportsTemperature)
 }
 
+func TestGetOpenAIChatCapabilitiesGPT6SolAndLuna(t *testing.T) {
+	models := []string{"gpt-6-sol", "gpt-6-luna", "gpt-6-sol-2026-09-22", "gpt-6-luna-2026-09-22"}
+	efforts := []string{"", "none", "low", "medium", "high", "xhigh", "max"}
+	for _, model := range models {
+		for _, effort := range efforts {
+			capabilities := GetOpenAIChatCapabilities(model, effort)
+			expectedSampling := effort == "none"
+			assert.True(t, capabilities.UseMaxCompletionTokens)
+			assert.True(t, capabilities.UseDeveloperRole)
+			assert.Equal(t, expectedSampling, capabilities.SupportsTemperature)
+			assert.Equal(t, expectedSampling, capabilities.SupportsTopP)
+			assert.Equal(t, expectedSampling, capabilities.SupportsLogProbs)
+		}
+	}
+
+	unknown := GetOpenAIChatCapabilities("gpt-6-sol-custom", "high")
+	assert.False(t, unknown.UseMaxCompletionTokens)
+	assert.True(t, unknown.SupportsTemperature)
+}
+
 func TestGeneralOpenAIRequestPreserveExplicitZeroValues(t *testing.T) {
 	raw := []byte(`{
 		"model":"gpt-4.1",
