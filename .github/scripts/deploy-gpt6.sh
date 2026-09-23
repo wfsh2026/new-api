@@ -8,6 +8,24 @@ sudo docker ps --format '{{.Names}} {{.Image}} {{.Status}}'
 sudo docker inspect new-api --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^MAX_REQUEST_BODY_MB='
 free -m
 df -h /
+if [ "$operation" = diagnose ]; then
+  date -u
+  uptime
+  sudo ss -lntp | grep -E ':(22|3000|5702)\b'
+  sudo ufw status verbose
+  sudo iptables -S INPUT
+  sudo iptables -S DOCKER-USER 2>/dev/null || true
+  sudo nft list tables 2>/dev/null || true
+  if command -v fail2ban-client >/dev/null; then sudo fail2ban-client status; fi
+  sudo docker stats --no-stream --format '{{.Name}} {{.CPUPerc}} {{.MemUsage}}'
+  curl --fail --silent http://127.0.0.1:3000/api/status | python3 -c 'import json,sys; d=json.load(sys.stdin); print("Local API healthy:",d.get("success"))'
+  if command -v tcpdump >/dev/null; then
+    echo 'PACKET_CAPTURE_START'
+    sudo timeout 55 tcpdump -nn -l -i any -c 120 'tcp and (port 22 or port 3000 or port 5702) and (tcp[tcpflags] & (tcp-syn|tcp-rst) != 0)' || true
+    echo 'PACKET_CAPTURE_END'
+  fi
+  exit 0
+fi
 if [ "$operation" = inspect ]; then
   sudo docker exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT id,type,status,name,models FROM channels ORDER BY id;"'
   exit 0

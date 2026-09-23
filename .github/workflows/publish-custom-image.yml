@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [inspect, deploy]
+        options: [inspect, deploy, diagnose]
         default: inspect
       image:
         type: string
