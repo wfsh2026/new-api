@@ -1,76 +1,39 @@
-name: Build custom Docker image
-
+name: Temporary GPT-6 deployment
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
-
+    inputs:
+      operation:
+        type: choice
+        options: [inspect, deploy]
+        default: inspect
+      image:
+        type: string
+        default: ghcr.io/wfsh2026/new-api:sha-5d5c98b
 permissions:
   contents: read
-  packages: write
-
-concurrency:
-  group: ghcr-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
 jobs:
-  build:
-    name: Build and publish linux/amd64
+  deploy:
     if: github.repository == 'wfsh2026/new-api'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+    timeout-minutes: 15
     steps:
-      - name: Check out repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Set image version
-        shell: bash
-        run: echo "wfsh-${GITHUB_SHA::7}" > VERSION
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate image metadata
-        id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest
-            type=raw,value=codex-sse
-            type=sha,prefix=sha-,format=short
-
-      - name: Build and push image
-        id: build
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Write build summary
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - name: Connect with temporary Lightsail SSH credentials
+        env:
+          SSH_KEY: ${{ secrets.GPT6_DEPLOY_SSH_KEY }}
+          SSH_CERT: ${{ secrets.GPT6_DEPLOY_SSH_CERT }}
+          SSH_HOSTS: ${{ secrets.GPT6_DEPLOY_KNOWN_HOSTS }}
+          OPERATION: ${{ inputs.operation }}
+          DEPLOY_IMAGE: ${{ inputs.image }}
         shell: bash
         run: |
-          echo "### Published Docker image" >> "$GITHUB_STEP_SUMMARY"
-          echo '```text' >> "$GITHUB_STEP_SUMMARY"
-          echo "${{ steps.meta.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "digest: ${{ steps.build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          [[ "$DEPLOY_IMAGE" =~ ^ghcr.io/wfsh2026/new-api:sha-[a-f0-9]{7}$ ]]
+          work=$(mktemp -d)
+          trap 'rm -rf -- "$work"' EXIT
+          umask 077
+          printf '%s\n' "$SSH_KEY" > "$work/key"
+          printf '%s\n' "$SSH_CERT" > "$work/key-cert.pub"
+          printf '%s\n' "$SSH_HOSTS" > "$work/known_hosts"
+          unset SSH_KEY SSH_CERT SSH_HOSTS
+          ssh -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$work/known_hosts" -i "$work/key" ubuntu@52.77.104.58 "bash -s -- '$OPERATION' '$DEPLOY_IMAGE'" < .github/scripts/deploy-gpt6.sh
