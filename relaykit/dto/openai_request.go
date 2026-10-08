@@ -258,6 +258,8 @@ func GetOpenAIChatCapabilities(modelName, reasoningEffort string) OpenAIChatCapa
 	isGPT5Model := IsOpenAIGPT5Model(modelName)
 	isGPT6Astra := isOpenAIModelSnapshot(modelName, "gpt-6-astra")
 	isGPT6Sol := isOpenAIModelSnapshot(modelName, "gpt-6-sol")
+	isGPT61Sol := isOpenAIModelSnapshot(modelName, "gpt-6.1-sol")
+	isGPT6Sol = isGPT6Sol || isGPT61Sol
 	isGPT6Luna := isOpenAIModelSnapshot(modelName, "gpt-6-luna")
 	if !isGPT5Model && !isGPT6Astra && !isGPT6Sol && !isGPT6Luna {
 		return capabilities

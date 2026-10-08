@@ -3,6 +3,8 @@ package billing_setting
 // Built-in token prices use actual USD per million tokens. Keep new model
 // defaults here instead of splitting them across the legacy ratio tables.
 var builtinBillingExpr = map[string]string{
+	// https://developers.openai.com/api/docs/models/gpt-6.1-sol (2026-10-08).
+	"gpt-6.1-sol": `(len <= 272000 ? tier("standard", p * 2 + cr * 0.1 + cc * 2.5 + c * 10) : tier("long_context", p * 4 + cr * 0.2 + cc * 5 + c * 15)) * (param("service_tier") in ["fast", "priority"] ? 2 : 1) * (param("service_tier") == "flex" ? 0.5 : 1)`,
 	// https://developers.openai.com/api/docs/pricing (2026-09-23).
 	// Cache reads and writes are separate from ordinary input. Long-context
 	// pricing applies to the full request once total input exceeds 272K tokens.
