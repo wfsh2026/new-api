@@ -1,0 +1,100 @@
+package relay
+
+import (
+	"io"
+	"strings"
+	"testing"
+
+	"github.com/QuantumNous/new-api/constant"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestPrepareCodexChatCompatibilityRequestFiltersGPT6Sampling(t *testing.T) {
+	temperature := 0.2
+	topP := 0.8
+	logProbs := true
+	topLogProbs := 5
+	request := &dto.GeneralOpenAIRequest{
+		Model:       "customer-alias",
+		Temperature: &temperature,
+		TopP:        &topP,
+		LogProbs:    &logProbs,
+		TopLogProbs: &topLogProbs,
+	}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		ChannelType:       constant.ChannelTypeCodex,
+		UpstreamModelName: "gpt-6-astra",
+	}}
+
+	prepareCodexChatCompatibilityRequest(info, request)
+
+	assert.Nil(t, request.Temperature)
+	assert.Nil(t, request.TopP)
+	assert.Nil(t, request.LogProbs)
+	assert.Nil(t, request.TopLogProbs)
+}
+
+func TestPrepareChatCompatibleResponsesRequest(t *testing.T) {
+	clientStream := false
+
+	codexRequest := &dto.OpenAIResponsesRequest{Stream: &clientStream}
+	prepareChatCompatibleResponsesRequest(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeCodex}}, codexRequest)
+	require.NotNil(t, codexRequest.Stream)
+	assert.True(t, *codexRequest.Stream)
+
+	openAIRequest := &dto.OpenAIResponsesRequest{Stream: &clientStream}
+	prepareChatCompatibleResponsesRequest(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenAI}}, openAIRequest)
+	require.NotNil(t, openAIRequest.Stream)
+	assert.False(t, *openAIRequest.Stream)
+}
+
+func TestSniffResponsesEventStreamBody(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{
+			name: "codex event stream without content type",
+			body: "event: response.created\ndata: {\"type\":\"response.created\"}\n\n",
+			want: true,
+		},
+		{
+			name: "data only event stream",
+			body: "data: {\"type\":\"response.output_text.delta\"}\n\n",
+			want: true,
+		},
+		{
+			name: "event stream with BOM and whitespace",
+			body: "\ufeff \r\nevent: response.created\n",
+			want: true,
+		},
+		{name: "json object", body: "{\"id\":\"resp_123\"}", want: false},
+		{name: "json array", body: "[1,2,3]", want: false},
+		{name: "plain text error", body: "error from upstream", want: false},
+		{name: "short partial prefix", body: "eve", want: false},
+		{name: "empty body", body: "", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isEventStream, body := sniffResponsesEventStreamBody(io.NopCloser(strings.NewReader(tt.body)))
+			require.NotNil(t, body)
+			defer body.Close()
+
+			assert.Equal(t, tt.want, isEventStream)
+			gotBody, err := io.ReadAll(body)
+			require.NoError(t, err)
+			assert.Equal(t, tt.body, string(gotBody))
+		})
+	}
+}
+
+func TestSniffResponsesEventStreamBodyWithNilBody(t *testing.T) {
+	isEventStream, body := sniffResponsesEventStreamBody(nil)
+	assert.False(t, isEventStream)
+	assert.Nil(t, body)
+}
