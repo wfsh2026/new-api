@@ -720,14 +720,6 @@ func RoutingMatchModelName(name string) string {
 	return FormatMatchingModelName(hostreasoning.BaseModelName(name))
 }
 
-// HasConfiguredModelRatio reports whether name has an explicit ratio entry
-// after wildcard normalization. Self-use fallback does not count.
-func HasConfiguredModelRatio(name string) bool {
-	name = FormatMatchingModelName(name)
-	_, ok := modelRatioMap.Get(name)
-	return ok
-}
-
 // 转换模型名，减少渠道必须配置各种带参数模型
 func FormatMatchingModelName(name string) string {
 	if strings.HasPrefix(name, "gemini-2.5-flash-lite") {
