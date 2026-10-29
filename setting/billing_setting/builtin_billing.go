@@ -14,6 +14,8 @@ const deepSeekFlashExpr = deepSeekPeak + ` ? tier("peak", p * 0.3 + cr * 0.006 +
 var builtinBillingExpr = map[string]string{
 	// Preserve the existing deployment's GPT-6 model prices.
 	"gpt-6.1-sol": `(len <= 272000 ? tier("standard", p * 2 + cr * 0.1 + cc * 2.5 + c * 10) : tier("long_context", p * 4 + cr * 0.2 + cc * 5 + c * 15)) * (param("service_tier") in ["fast", "priority"] ? 2 : 1) * (param("service_tier") == "flex" ? 0.5 : 1)`,
+	// https://openrouter.ai/openai/gpt-6.1-terra (2026-10-26).
+	"gpt-6.1-terra": `(len <= 272000 ? tier("standard", p * 1 + cr * 0.05 + cc * 1.25 + c * 5) : tier("long_context", p * 2 + cr * 0.1 + cc * 2.5 + c * 7.5)) * (param("service_tier") in ["fast", "priority"] ? 2 : 1) * (param("service_tier") == "flex" ? 0.5 : 1)`,
 	"gpt-6-sol":   `(len <= 272000 ? tier("standard", p * 2 + cr * 0.2 + cc * 2.5 + c * 10) : tier("long_context", p * 4 + cr * 0.4 + cc * 5 + c * 15)) * (param("service_tier") in ["fast", "priority"] ? 2 : 1) * (param("service_tier") == "flex" ? 0.5 : 1)`,
 	"gpt-6-luna":  `(len <= 272000 ? tier("standard", p * 0.1 + cr * 0.01 + cc * 0.125 + c * 0.5) : tier("long_context", p * 0.2 + cr * 0.02 + cc * 0.25 + c * 0.75)) * (param("service_tier") in ["fast", "priority"] ? 2 : 1) * (param("service_tier") == "flex" ? 0.5 : 1)`,
 	// https://developers.openai.com/api/docs/pricing (Standard, 2026-09-09).
